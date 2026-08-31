@@ -24,7 +24,8 @@
     :disabled="disabled"
     :model-value="modelValue"
     v-bind="$attrs"
-    @blur="handleInputBlur"
+    @blur="handleInputConfirm"
+    @keyup.enter="handleInputConfirm"
     @update:model-value="emit('update:modelValue', $event)"
   />
   <!-- 分支/Tag 分组下拉：打开表单时预拉；分组刷新只请求对应接口 -->
@@ -91,14 +92,15 @@
       disabled?: boolean;
       /** 选中值（短分支名 / Tag 名） */
       modelValue?: string;
-      /** 代码仓库标识（repoBuildConfig.repoAlias） */
-      repositoryId: string;
+      /** 代码仓库标识（repoBuildConfig.repoAlias）；空字符串表示流水线手动输入模式 */
+      repositoryId?: string;
       /** 工作空间 ID */
       workspaceId: string;
     }>(),
     {
       disabled: false,
       modelValue: '',
+      repositoryId: '',
     },
   );
 
@@ -145,14 +147,21 @@
     }
   }
 
+  /** 非空分支值确认后通知父级拉取推荐 Tag */
+  function emitBranchCommit(value: string) {
+    const branch = value.trim();
+    if (!branch) return;
+    emit('branchCommit', branch);
+  }
+
   /** 分组标题：branch → 代码分支，tag → Tag */
   function getGroupLabel(groupId: RepoRefGroupId) {
     return groupId === 'branch' ? t('代码分支') : 'Tag';
   }
 
-  /** Input 失焦时确认分支值，供父级拉取推荐 Tag */
-  function handleInputBlur() {
-    emit('branchCommit', props.modelValue ?? '');
+  /** Input 失焦或回车时确认分支值 */
+  function handleInputConfirm() {
+    emitBranchCommit(props.modelValue ?? '');
   }
 
   /** 远程搜索：关闭 Select 内置 searchLoading，交由 hook 防抖处理 */
@@ -166,20 +175,17 @@
   /** Select 选中后立即确认分支值 */
   function handleSelectUpdate(value: string) {
     emit('update:modelValue', value);
-    emit('branchCommit', value);
+    emitBranchCommit(value);
   }
 
   /** 下拉展开/收起：收起时不把「清空搜索框」当成一次远程搜索 */
   function handleToggle(isOpen: boolean) {
-    if (isOpen) {
-      onDropdownOpen();
-    } else {
-      onDropdownClose();
-    }
+    return isOpen ? onDropdownOpen() : onDropdownClose();
   }
 
-  /** 关闭下拉面板（嵌套 Popover 场景下父级可主动调用） */
+  /** 关闭下拉面板（嵌套 Popover 场景下父级可主动调用；Input 模式无操作） */
   function hidePopover() {
+    if (!props.repositoryId) return;
     selectRef.value?.hidePopover?.();
   }
 
@@ -189,9 +195,7 @@
   function prepare(preferred = '') {
     emit('update:modelValue', preferred);
     emit('prepared', preferred);
-    if (preferred) {
-      emit('branchCommit', preferred);
-    }
+    emitBranchCommit(preferred);
     // 有仓库标识时才预拉 branches/tags
     if (props.repositoryId) {
       ensureOptionsLoaded();

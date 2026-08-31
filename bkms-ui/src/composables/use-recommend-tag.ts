@@ -75,5 +75,5 @@ export function useRecommendTag(
     }
   });
 
-  return { getDefaultBranch, fetchRecommendTag };
+  return { fetchRecommendTag, getDefaultBranch };
 }

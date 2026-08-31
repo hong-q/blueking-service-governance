@@ -68,72 +68,66 @@
                 <Button
                   class="mr-[10px] w-[80px]"
                   theme="primary"
-                  @click="showPopConfirm = true"
+                  @click="handleShowPopConfirm"
                 >
                   {{ $t('执行构建') }}
                 </Button>
                 <template #content>
-                  <div @mousedown="dismissBranchSelectOnOutsideMouseDown">
-                    <div class="pb-[16px] text-[14px]">{{ $t('执行配置') }}</div>
-                    <Form
-                      ref="executeFormRef"
-                      form-type="vertical"
-                      :model="formData"
-                      :rules="rules"
+                  <div class="pb-[16px] text-[14px]">{{ $t('执行配置') }}</div>
+                  <Form
+                    ref="executeFormRef"
+                    form-type="vertical"
+                    :model="formData"
+                    :rules="rules"
+                  >
+                    <Form.FormItem
+                      :description="$t('值会通过变量 {0} 传给流水线', ['BKMS_REPO_REVISION'])"
+                      :label="$t('分支')"
+                      property="branch"
+                      :required="isBuildFieldRequired"
                     >
-                      <Form.FormItem
-                        :description="$t('值会通过变量 {0} 传给流水线', ['BKMS_REPO_REVISION'])"
-                        :label="$t('代码分支')"
-                        property="branch"
-                        :required="isBuildFieldRequired"
+                      <Input
+                        v-model.trim="formData.branch"
+                        class="w-[400px]"
+                        clearable
+                      />
+                    </Form.FormItem>
+                    <Form.FormItem
+                      :description="$t('值会通过变量 {0} 传给流水线', ['BKMS_IMAGE_TAG'])"
+                      :label="`${$t('版本号')}(tag)`"
+                      property="tag"
+                      :required="isBuildFieldRequired"
+                    >
+                      <Input
+                        v-model.trim="formData.tag"
+                        class="w-[400px]"
+                        clearable
+                        :placeholder="`${$t('请输入，例如')}v1.0.0-alpha.1`"
+                      />
+                      <p
+                        v-if="recommendTag"
+                        class="text-[#979BA5]"
                       >
-                        <!-- 分支/Tag 下拉 -->
-                        <RepoRefSelect
-                          ref="branchSelectRef"
-                          v-model="formData.branch"
-                          class="w-[400px]"
-                          :repository-id="repoAlias"
-                          :workspace-id="workspaceId"
-                          @branch-commit="handleBranchSelect"
-                        />
-                      </Form.FormItem>
-                      <Form.FormItem
-                        :description="$t('值会通过变量 {0} 传给流水线', ['BKMS_IMAGE_TAG'])"
-                        :label="$t('版本号（镜像 Tag）')"
-                        property="tag"
-                        :required="isBuildFieldRequired"
-                      >
-                        <Input
-                          v-model.trim="formData.tag"
-                          class="w-[400px]"
-                          clearable
-                          :placeholder="`${$t('请输入，例如')}v1.0.0-alpha.1`"
-                        />
-                        <p
-                          v-if="recommendTag"
-                          class="text-[#979BA5]"
-                        >
-                          {{ $t('推荐版本号') }}：{{ recommendTag }}
-                        </p>
-                      </Form.FormItem>
-                    </Form>
-                    <div class="flex justify-end mt-[10px]">
-                      <Button
-                        :loading="isLoading"
-                        size="small"
-                        theme="primary"
-                        @click="handleExecuteSource"
-                      >
-                        {{ $t('确认') }}
-                      </Button>
-                      <Button
-                        class="ml-[8px]"
-                        size="small"
-                        @click="showPopConfirm = false"
-                      >
-                        {{ $t('取消') }}
-                      </Button>
-                    </div>
+                        {{ $t('推荐版本号') }}：{{ recommendTag }}
+                      </p>
+                    </Form.FormItem>
+                  </Form>
+                  <div class="flex justify-end mt-[10px]">
+                    <Button
+                      :loading="isLoading"
+                      size="small"
+                      theme="primary"
+                      @click="handleExecuteSource"
+                    >
+                      {{ $t('确认') }}
+                    </Button>
+                    <Button
+                      class="ml-[8px]"
+                      size="small"
+                      @click="showPopConfirm = false"
+                    >
+                      {{ $t('取消') }}
+                    </Button>
                   </div>
                 </template>
               </Popover>
@@ -324,7 +318,6 @@
   import { BuildsService } from '~/api/modules/v1';
   import Layout from '~/components/skeleton/skeleton-layout';
   import { isHelmLikeAppType } from '~/composables/app-type';
-  import { useAppRepoRefSelect } from '~/composables/use-app-repo-ref-select';
   import { useErrorHandler } from '~/composables/use-error-handler';
   import useInterval from '~/composables/use-interval';
   import usePageConf from '~/composables/use-page';
@@ -350,15 +343,6 @@
   const appDetailStore = useAppDetail();
   const { formatDateString, calculateTimeDifference, parseTimeToSeconds } = useTime();
   const isHelmLike = computed(() => isHelmLikeAppType(appDetailStore.appType));
-
-  const {
-    workspaceId,
-    repoAlias,
-    branchSelectRef,
-    prepareBranchAfterMount,
-    resetBranchSelect,
-    dismissBranchSelectOnOutsideMouseDown,
-  } = useAppRepoRefSelect(() => appDetailStore.appDetail?.buildConfig?.repoBuildConfig?.repoAlias || '');
   // 来自镜像删除页「去配置」跳转时通过 store 瞬态标记（pendingBuilderSource）携带的来源，
   // 用于自动打开构建配置侧栏并默认选中指定来源。标记被消费后即清空，避免重入重复弹出，
   // 同时不影响 helmBuildConfigData 的预选（否则 sourceType 被重置会导致侧栏表单闪烁）
@@ -489,17 +473,16 @@
   const rules = {
     branch: [
       {
-        // bkui validator 仅 true/false/字符串有明确语义，返回 0 会被当成通过
-        validator: (value: string) => !!String(value ?? '').trim(),
+        validator: (value: string) => value.length,
         message: t('分支不能为空'),
-        trigger: ['change', 'blur'],
+        trigger: 'blur',
       },
     ],
     tag: [
       {
-        validator: (value: string) => !!String(value ?? '').trim(),
+        validator: (value: string) => value.length,
         message: t('tag不能为空'),
-        trigger: ['change', 'blur'],
+        trigger: 'blur',
       },
     ],
   };
@@ -525,31 +508,20 @@
   const recommendTag = ref('');
   // 获取推荐版本号
   const { getDefaultBranch, fetchRecommendTag } = useRecommendTag(() => formData.value.branch, {
-    manualFetchOnly: computed(() => !repoAlias.value),
     onRecommend: tag => {
-      if (!showPopConfirm.value) return;
-      formData.value.tag = tag;
-      recommendTag.value = tag;
+      if (showPopConfirm.value) {
+        formData.value.tag = tag;
+        recommendTag.value = tag;
+      }
     },
   });
 
-  /** 分支确认后拉取推荐 Tag（Select 选中 / Input 失焦 / prepare 回填） */
-  function handleBranchSelect(branch: string) {
-    if (branch) fetchRecommendTag(branch);
+  function handleShowPopConfirm() {
+    showPopConfirm.value = true;
+    const branch = getDefaultBranch();
+    formData.value.branch = branch;
+    fetchRecommendTag(branch);
   }
-
-  // 打开：复位表单并回填默认分支；关闭：收起分支下拉
-  watch(showPopConfirm, async visible => {
-    if (!visible) {
-      resetBranchSelect();
-      return;
-    }
-    formData.value = { branch: '', tag: '' };
-    recommendTag.value = '';
-    await nextTick();
-    await prepareBranchAfterMount(getDefaultBranch());
-    executeFormRef.value?.clearValidate?.();
-  });
 
   const isLoading = ref<boolean>(false);
   // 获取构建列表
@@ -603,6 +575,7 @@
   async function handleExecuteSource() {
     const validate = await executeFormRef.value?.validate().catch(() => false);
     if (!validate) return;
+
     isLoading.value = true;
 
     const result = await BuildsService.createBuild(

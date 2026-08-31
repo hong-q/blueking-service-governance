@@ -65,7 +65,6 @@
       <Form.FormItem
         :label="$t('代码分支')"
         property="branch"
-        required
       >
         <RepoRefSelect
           ref="branchSelectRef"
@@ -200,6 +199,11 @@
       }
     },
   });
+
+  /** 分支确认后拉取推荐镜像 Tag */
+  function handleBranchSelect(branch: string) {
+    if (branch) fetchRecommendTag(branch);
+  }
   // 离开确认：表单有变更时提示用户
   const { confirmBox, forceCleanDirtyTag, withPausedWatch } = useLeaveConfirm(formModel);
 
@@ -231,13 +235,6 @@
     } else {
       params.branch = formModel.branch;
       await deployAPIs.buildAndCreateDeploy!(params);
-    }
-  }
-
-  /** 分支变化立即拉取推荐镜像 Tag */
-  function handleBranchSelect(value: string) {
-    if (value) {
-      fetchRecommendTag(value);
     }
   }
 

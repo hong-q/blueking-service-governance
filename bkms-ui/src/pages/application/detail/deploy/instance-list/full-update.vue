@@ -88,7 +88,6 @@
             v-if="imageSource === 'code'"
             :label="$t('代码分支')"
             property="branch"
-            required
           >
             <RepoRefSelect
               ref="branchSelectRef"
@@ -247,6 +246,11 @@
       }
     },
   });
+
+  /** 分支确认后拉取推荐镜像 Tag */
+  function handleBranchSelect(branch: string) {
+    if (branch) fetchRecommendTag(branch);
+  }
   const { confirmBox, forceCleanDirtyTag, withPausedWatch } = useLeaveConfirm(formModel);
 
   const alertContent = computed(() => {
@@ -286,13 +290,6 @@
   // 侧边栏关闭前确认
   function handleBeforeClose(): Promise<boolean> {
     return confirmBox();
-  }
-
-  /** 分支变化立即拉取推荐镜像 Tag */
-  function handleBranchSelect(value: string) {
-    if (value) {
-      fetchRecommendTag(value);
-    }
   }
 
   /** 切换镜像来源；源码模式 prepare 默认分支并预拉列表 */

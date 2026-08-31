@@ -31,7 +31,6 @@
       <Form.FormItem
         :label="t('分支')"
         property="branch"
-        required
       >
         <RepoRefSelect
           ref="branchSelectRef"
